@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>🍦第二份半价的折扣秘密 | 趣味分析</title>
+    <style>
+        :root {
+            --primary: #FF7F50;
+            --secondary: #4D96FF;
+            --bg-gradient: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+        }
+        body {
+            background: 
+                /* 新增浅紫色颗粒层 */
+                repeating-radial-gradient(circle at 30% 70%, 
+                    rgba(255, 255, 255, 0.3) 0%, 
+                    rgba(255, 255, 255, 0.3) 5%,
+                    transparent 5%,
+                    transparent 10%),
+        
+                /* 调整后的渐变层 */
+                linear-gradient(145deg,
+                    rgba(255, 235, 245, 0.85) 20%,
+                    rgba(235, 215, 255, 0.85) 80%),
+        
+
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 30px;
+            max-width: 1200px;
+            margin: 20px auto;
+            background: rgba(255, 248, 231, 0.96);
+            border: 1px solid rgba(192, 152, 103, 0.2);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 25px;
+            backdrop-filter: blur(10px);
+        }
+
+        #dataTable {
+            position: sticky;
+            top: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease;
+        }
+
+        #dataTable:hover {
+            transform: translateY(-5px);
+        }
+
+        .chart-wrapper {
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        caption {
+            background: linear-gradient(135deg, #C4A484, #D2B48C); /* 奶茶渐变色 */
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+            padding: 15px;
+            border-radius: 10px 10px 0 0;
+            font-size: 1.3em;
+            letter-spacing: 1px;
+        }
+
+        th {
+            background: #FFF5E6;
+            border-bottom: 2px solid #D2B48C;
+            position: sticky;
+            top: 0;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        td {
+            padding: 12px;
+            transition: background 0.2s ease;
+        }
+
+        tr:hover td {
+            background: #fff3e0 !important;
+        }
+
+        .controls {
+            text-align: center;
+            margin: 30px auto;
+            max-width: 500px;
+        }
+
+        #nInput {
+            border: 2px solid var(--primary);
+            border-radius: 25px;
+            padding: 10px 20px;
+            font-size: 1.1em;
+            width: 120px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        #nInput:focus {
+            outline: none;
+            box-shadow: 0 0 10px rgba(255,127,80,0.3);
+        }
+
+        .chart-title {
+            font-size: 1.4em;
+            margin: 15px 0;
+            color: var(--primary);
+            text-align: center;
+            position: relative;
+        }
+
+        .chart-title::after {
+            content: "";
+            display: block;
+            width: 60px;
+            height: 3px;
+            background: var(--primary);
+            margin: 10px auto;
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+        }
+
+        .tooltip::after {
+            content: "🍨偶数份享受最大优惠！";
+            position: absolute;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            white-space: nowrap;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: 0.2s;
+            pointer-events: none;
+        }
+
+        .tooltip:hover::after {
+            opacity: 1;
+            margin-bottom: 8px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                padding: 15px;
+            }
+            
+            #dataTable {
+                position: static;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <label for="nInput">显示份数 (n):</label>
+        <input type="number" id="nInput" value="1" min="1" step="1">
+        <label>份</label>
+    </div>
+
+    <div class="container">
+        <table id="dataTable">
+            <caption>📊第二份半价数据表</caption>
+            <thead>
+                <tr>
+                    <th>份数</th>
+                    <th>原价</th>
+                    <th>售价</th>
+                    <th>折扣</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+
+        <div>
+            <div class="chart-title">📈奇偶份数折扣曲线对比</div>
+            <canvas id="chart" width="810" height="500"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let cups = [], prices = [], discounts = [];
+        const pricePerCup = 12;
+        const halfPrice = 6;
+
+        function generateData(n) {
+            cups = Array.from({length: n}, (_, i) => i + 1);
+            prices = cups.map(n => {
+                const fullPairs = Math.floor(n / 2);
+                const singleCup = n % 2;
+                return fullPairs * (pricePerCup + halfPrice) + singleCup * pricePerCup;
+            });
+            discounts = cups.map(n => 
+                ((prices[n-1] / (pricePerCup * n)) * 100).toFixed(2)
+            );
+        }
+
+        function updateTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            cups.forEach((cup, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${cup}份</td>
+                    <td>${pricePerCup * cup}元</td>
+                    <td>${prices[index]}元</td>
+                    <td>${discounts[index]}%</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        const canvas = document.getElementById('chart');
+        const ctx = canvas.getContext('2d');
+        let currentChart = null;
+
+        function drawChart() {
+            if (currentChart) {
+                currentChart.destroy();
+            }
+
+            const n = cups.length;
+            const isLine = n > 8;
+
+            // 创建奇数和偶数的数据数组（包含x,y坐标）
+            const oddData = [];
+            const evenData = [];
+            cups.forEach((cup, index) => {
+                const discount = discounts[index];
+                if (cup % 2 === 1) {
+                    oddData.push({x: cup, y: discount});
+                } else {
+                    evenData.push({x: cup, y: discount});
+                }
+            });
+
+            currentChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            label: '奇数份',
+                            data: oddData,
+                            borderColor: '#FF6B6B',
+                            borderWidth: n >= 8 ? 2 : 0,
+                            tension: 0.4,
+                            pointBackgroundColor: '#FF6B6B',
+                            pointBorderColor: '#FF6B6B',
+                            pointRadius: n >=8 ? 5 : 8, // n <8 时点更大
+                        },
+                        {
+                            label: '偶数份',
+                            data: evenData,
+                            borderColor: '#4D96FF',
+                            borderWidth: n >= 8 ? 2 : 0,
+                            tension: 0.4,
+                            pointBackgroundColor: '#4D96FF',
+                            pointBorderColor: '#4D96FF',
+                            pointRadius: n >=8 ? 5 : 8, // n <8 时点更大
+                        }
+                    ]
+                },
+                options: {
+                    responsive: false,
+                    layout: {
+                        padding: {
+                            right: 10  // 右侧增加10px内边距
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: { display: true, text: '折扣 (%)' ,font: {weight: 'bold',size:18}},
+                            min: 50,
+                            max: 100,
+                            ticks:{font: {weight: 'bold',size:18}}
+
+
+
+
+
+                            },
+
+
+
+                        x: {
+                            type: 'linear',
+                            title: { display: true, text: '购买份数 (n)',font: {weight: 'bold',size:18} },
+                            min: 1,
+                            max: n,
+                            bounds: 'data',  // 新增：严格数据范围
+                            grid: {
+                                display: false  // 可选：隐藏纵向网格线
+                            },
+                            
+                        ticks: {
+                            stepSize: 1,
+                            precision: 0, // 确保显示整数刻度
+                            autoSkip: false,  // 强制显示所有刻度
+                            font: {weight: 'bold',size:18},
+
+
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true
+                        }
+                    }
+                }
+            });
+        }
+
+        document.getElementById('nInput').addEventListener('change', function() {
+            const newN = Math.max(1, parseInt(this.value) || 10);
+            this.value = newN;
+            generateData(newN);
+            updateTable();
+            drawChart();
+        });
+        generateData(1);
+        updateTable();
+        drawChart();
+    </script>
+    <script src="last.js"></script>
+</body>
+</html>
